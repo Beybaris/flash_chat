@@ -4,6 +4,7 @@ import 'package:flash_chat_flutter/constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 final _firestore = FirebaseFirestore.instance;
+late User loggedUser;
 class ChatScreen extends StatefulWidget {
   static String id = 'chat_screen';
   @override
@@ -12,25 +13,10 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-  late User loggedUser;
+
   late String messageText;
   final messageTextController = TextEditingController();
 
-
-  // void getMessages() async {
-  //   final messages = await _firestore.collection('messages').get();
-  //   for(var message in messages.docs) {
-  //     print(message.data());
-  //   }
-  // }
-
-  void messageStream() async {
-    await for(var snapshot in _firestore.collection('messages').snapshots()) {
-      for(var message in snapshot.docs) {
-        print(message.data());
-      }
-    }
-  }
 
   @override
   void initState() {
@@ -59,9 +45,8 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
               icon: Icon(Icons.close),
               onPressed: () {
-                messageStream();
-                // _auth.signOut();
-                // Navigator.pop(context);
+                _auth.signOut();
+                Navigator.pop(context);
               }),
         ],
         title: Text('⚡️Chat'),
@@ -78,17 +63,23 @@ class _ChatScreenState extends State<ChatScreen> {
                 if(!snapshot.hasData) {
                   return Center(child: CircularProgressIndicator(),);
                 }
-                final messages = snapshot.data?.docs;
+                final messages = snapshot.data?.docs.reversed;
                 List<MessageBubble> messageBubbles = [];
                 for(var message in messages!) {
+                  final currentUser = loggedUser.email;
                   final messageText = message.get('text');
                   final messageSender = message.get('sender');
-                  final messageBubble = MessageBubble(sender: messageSender, text: messageText,);
+                  final messageBubble = MessageBubble(
+                    sender: messageSender,
+                    text: messageText,
+                    ItIsMe: currentUser == messageSender,
+                  );
                   messageBubbles.add(messageBubble);
                 }
 
                 return Expanded(
                   child: ListView(
+                    reverse: true,
                     padding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 10.0),
                     children: messageBubbles,
                   ),
@@ -133,16 +124,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
 class MessageBubble extends StatelessWidget {
   
-  MessageBubble({required this.text, required this.sender});
+  MessageBubble({required this.text, required this.sender, required this.ItIsMe});
   
   final String text;
   final String sender;
+  final bool ItIsMe;
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(10.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment:
+          ItIsMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Text(sender, style: TextStyle(
               fontSize: 12,
@@ -150,9 +143,14 @@ class MessageBubble extends StatelessWidget {
           ),
           ),
           Material(
-            borderRadius: BorderRadius.circular(30.0),
+            borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(30.0),
+                bottomRight: Radius.circular(30.0),
+                topLeft: (ItIsMe ? Radius.circular(30.0) : Radius.circular(0)),
+                topRight: (ItIsMe ? Radius.circular(0) : Radius.circular(30.0)),
+            ),
             elevation: 5.0,
-            color: Colors.lightBlueAccent,
+            color: ItIsMe ? Colors.lightBlueAccent : Colors.blueAccent,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
               child: Text(
